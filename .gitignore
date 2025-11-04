@@ -1,0 +1,16 @@
+nouse
+
+# mac files
+.DS_Store
+
+# vim swap files
+*~
+*.swp
+*.swo
+
+# webstorm
+.idea
+
+# vscode
+.vscode
+*code-workspace
