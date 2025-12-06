@@ -41,18 +41,8 @@ func (a *Application) Run() {
 			case <-time.After(1 * time.Second):
 				a.Stat.SecondsFromStart.With(prometheus.Labels{"thread": "main"}).Inc()
 				go func() {
-					tm := prometheus.NewTimer(a.Stat.RandomDuration.With(prometheus.Labels{"thread": "main"}))
-					defer func() {
-						d := tm.ObserveDuration()
-						log.Printf("duration: %v", d)
-					}()
-					// start := time.Now()
-
+					defer prometheus.NewTimer(a.Stat.RandomDuration.With(prometheus.Labels{"thread": "main"})).ObserveDuration()
 					time.Sleep(time.Duration(rand.Intn(1000)) * time.Millisecond)
-
-					// reqDuration := time.Since(start)
-					// a.Stat.RandomDuration.With(prometheus.Labels{"thread": "main"}).Observe(reqDuration.Seconds())
-					// log.Printf("duration: %v", reqDuration.Seconds())
 				}()
 			}
 		}
