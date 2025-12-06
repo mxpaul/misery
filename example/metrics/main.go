@@ -12,9 +12,9 @@ import (
 )
 
 type Stat struct {
-	SecondsFromStart     *prometheus.CounterVec   `misery:"name=seconds_from_start,labels=[thread],help='seconds since application start'" json:"seconds_from_start""`
-	UnusedDefaultCounter *prometheus.CounterVec   `json:"unused_default_counter""`
-	RandomDuration       *prometheus.HistogramVec `json:"random_duration""`
+	SecondsFromStart     *prometheus.CounterVec   `misery:"name=seconds_from_start,labels=[thread],help='seconds since application start'" json:"seconds_from_start"`
+	UnusedDefaultCounter *prometheus.CounterVec   `json:"unused_default_counter"`
+	RandomDuration       *prometheus.HistogramVec `misery:"labels=[thread],buckets=[0.0001, 0.001, 0.01, 0.1, 0.2, 0.3, 0.5, 1.0, 2.0, 10, 20, 50, 100]" json:"random_duration"`
 }
 
 type Application struct {
@@ -68,16 +68,6 @@ func main() {
 
 	if err := misery.RegisterMetrics(&app.Stat, app.Registry); err != nil {
 		log.Fatalf("metrics register failed: %v", err)
-	}
-
-	app.Stat.RandomDuration = prometheus.NewHistogramVec(prometheus.HistogramOpts{
-		Name:    "random_duration",
-		Help:    "help you",
-		Buckets: []float64{0.0001, 0.001, 0.01, 0.1, 0.2, 0.3, 0.5, 1.0, 2.0, 10, 20, 50, 100, 1000, 2000, 3000, 5000, 10000},
-	}, []string{"thread"})
-
-	if err := app.Registry.Register(app.Stat.RandomDuration); err != nil {
-		log.Fatalf("collector register failed: %w", err)
 	}
 
 	app.Run()

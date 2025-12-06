@@ -59,7 +59,8 @@ func parseStructTags(structValue reflect.Value) (map[string][]stagparser.Definit
 }
 
 var (
-	prometheusCounterType = reflect.TypeOf((*prometheus.CounterVec)(nil))
+	prometheusCounterType   = reflect.TypeOf((*prometheus.CounterVec)(nil))
+	prometheusHistogramType = reflect.TypeOf((*prometheus.HistogramVec)(nil))
 )
 
 func registerMetricsByTags(
@@ -76,6 +77,10 @@ func registerMetricsByTags(
 		case field.Type() == prometheusCounterType:
 			if collector, err = createPrometheusCounter(typeField.Name, tags[typeField.Name]); err != nil {
 				return fmt.Errorf("createPrometheusCounter failed: %w", err)
+			}
+		case field.Type() == prometheusHistogramType:
+			if collector, err = createPrometheusHistogram(typeField.Name, tags[typeField.Name]); err != nil {
+				return fmt.Errorf("createPrometheusHistogram failed: %w", err)
 			}
 		default:
 			// return fmt.Errorf("%w: %v", ErrTypeNotSupported, field.Type())
@@ -131,4 +136,67 @@ func createPrometheusCounter(
 	}
 
 	return prometheus.NewCounterVec(prometheus.CounterOpts{Name: name, Help: help}, labels), nil
+}
+
+func createPrometheusHistogram(
+	structFieldName string,
+	defs []stagparser.Definition,
+) (*prometheus.HistogramVec, error) {
+	opt := prometheus.HistogramOpts{
+		Name:    strcase.ToSnake(structFieldName),
+		Help:    "",
+		Buckets: []float64{0.001, 0.01, 0.05, 0.1, 0.2, 0.3, 0.5, 1.0, 2.0, 10, 20},
+	}
+	labels := []string{}
+	for _, def := range defs {
+		attrs := def.Attributes()
+		switch attrName := def.Name(); attrName {
+		case "name":
+			if nameString, ok := attrs[attrName].(string); ok {
+				opt.Name = nameString
+			} else {
+				return nil, fmt.Errorf("%w: name is not a string", ErrAttributeMalformed)
+			}
+		case "labels":
+			if labelSliceOfAny, ok := attrs[attrName].([]interface{}); ok {
+				for _, labelInterface := range labelSliceOfAny {
+					if labelString, ok := labelInterface.(string); ok {
+						labels = append(labels, labelString)
+					} else {
+						return nil, fmt.Errorf("%w: label is not a string", ErrAttributeMalformed)
+					}
+				}
+			} else {
+				return nil, fmt.Errorf("%w: labels is not a list", ErrAttributeMalformed)
+			}
+		case "help":
+			if helpString, ok := attrs[attrName].(string); ok {
+				opt.Help = helpString
+			} else {
+				return nil, fmt.Errorf("%w: help is not a string", ErrAttributeMalformed)
+			}
+		case "buckets":
+			if bucketSliceOfFAny, ok := attrs[attrName].([]interface{}); ok {
+				opt.Buckets = make([]float64, 0, len(bucketSliceOfFAny))
+				for _, bucketInterface := range bucketSliceOfFAny {
+					switch b := bucketInterface.(type) {
+					case float64:
+						opt.Buckets = append(opt.Buckets, b)
+					case int32:
+						opt.Buckets = append(opt.Buckets, float64(b))
+					case int64:
+						opt.Buckets = append(opt.Buckets, float64(b))
+					default:
+						return nil, fmt.Errorf("%w: bucket is not a float64 %T %v", ErrAttributeMalformed, b, b)
+					}
+				}
+			} else {
+				return nil, fmt.Errorf("%w: buckets is not a list of floats", ErrAttributeMalformed)
+			}
+		default:
+			return nil, fmt.Errorf("%w: unsupported attribute %s", ErrAttributeMalformed, attrName)
+		}
+	}
+
+	return prometheus.NewHistogramVec(opt, labels), nil
 }
